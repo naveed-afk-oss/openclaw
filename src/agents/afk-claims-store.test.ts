@@ -5,6 +5,9 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 
 const CLAIMS_FILE = "/data/.clawdbot/afk-claims.json";
 
+// Shared in-memory store for the fs mock — exposed so tests can seed it
+const sharedMemoryStore: Record<string, string> = {};
+
 vi.mock("node:fs");
 
 describe("afk-claims-store", () => {
@@ -12,24 +15,24 @@ describe("afk-claims-store", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    // Mock fs with a per-test in-memory store
-    const memoryStore: Record<string, string> = {};
+    // Reset the shared memory store for this test
+    for (const k of Object.keys(sharedMemoryStore)) delete sharedMemoryStore[k];
     vi.doMock("node:fs", () => ({
       promises: {
         readFile: vi.fn(async (filePath: string) => {
           if (filePath === CLAIMS_FILE) {
-            if (memoryStore[CLAIMS_FILE] === undefined) {
+            if (sharedMemoryStore[CLAIMS_FILE] === undefined) {
               const err = new Error("ENOENT") as Error & { code: string };
               err.code = "ENOENT";
               throw err;
             }
-            return memoryStore[CLAIMS_FILE];
+            return sharedMemoryStore[CLAIMS_FILE];
           }
           throw new Error("Unexpected path: " + filePath);
         }),
         writeFile: vi.fn(async (filePath: string, data: string) => {
           if (filePath === CLAIMS_FILE) {
-            memoryStore[CLAIMS_FILE] = data;
+            sharedMemoryStore[CLAIMS_FILE] = data;
           }
         }),
         mkdir: vi.fn(async () => {}),
@@ -88,24 +91,25 @@ describe("afk-claims-store", () => {
   });
 
   describe("expireClaims", () => {
-    it("removes claims older than 2 hours", () => {
+    it("removes claims older than 2 hours", async () => {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000 - 1).toISOString();
       const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-      store.__testingSeedStore({
-        "owner/repo#old": twoHoursAgo,
-        "owner/repo#recent": recent,
+      const seeded = store.__testingSeedStore({
+        "owner/repo#1": twoHoursAgo,
+        "owner/repo#2": recent,
       });
+      // Also seed the fs mock so subsequent load() calls see the seeded data
+      sharedMemoryStore[CLAIMS_FILE] = seeded;
 
       store.expireClaims();
 
-      // 'old' should be removed, 'recent' should remain
-      const remaining = Object.keys(
-        // @ts-expect-error accessing private
-        store._store?.claims ?? {},
-      );
-      expect(remaining).not.toContain("owner/repo#old");
-      expect(remaining).toContain("owner/repo#recent");
+      // Verify via public API: expired claim should no longer be claimed
+      const oldClaimed = await store.isClaimed("owner", "repo", 1);
+      expect(oldClaimed).toBe(false);
+      // Recent claim should still be claimed
+      const recentClaimed = await store.isClaimed("owner", "repo", 2);
+      expect(recentClaimed).toBe(true);
     });
   });
 });

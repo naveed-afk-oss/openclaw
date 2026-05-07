@@ -96,9 +96,11 @@ export function __testingResetStore(): void {
 }
 
 /**
- * Seed store with raw data (for testing).
+ * Seed store with raw data (for testing). Returns the stringified store content
+ * so tests can also seed the fs mock if needed.
  */
-export function __testingSeedStore(data: Record<string, string>): void {
+export function __testingSeedStore(data: Record<string, string>): string {
   _store = { claims: { ...data } };
   _loaded = true;
+  return JSON.stringify(_store);
 }
