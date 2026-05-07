@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const SEMAPHORE_DIR = "/data/.clawdbot";
+const STATE_DIR =
+  process.env.AFK_STATE_DIR ??
+  `${process.env.OPENCLAW_STATE_DIR ?? process.env.HOME ?? "$HOME"}/.openclaw/afk-state`;
+const SEMAPHORE_DIR = STATE_DIR;
 const SEMAPHORE_FILE = "afk-semaphore.json";
 
 function ensureDir(): void {

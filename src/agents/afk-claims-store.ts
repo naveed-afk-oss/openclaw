@@ -6,7 +6,10 @@ export interface AfkClaimsStore {
   claims: Record<string, string>;
 }
 
-const CLAIMS_FILE = "/data/.clawdbot/afk-claims.json";
+const STATE_DIR =
+  process.env.AFK_STATE_DIR ??
+  `${process.env.OPENCLAW_STATE_DIR ?? process.env.HOME ?? "$HOME"}/.openclaw/afk-state`;
+const CLAIMS_FILE = `${STATE_DIR}/afk-claims.json`;
 const CLAIM_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 let _store: AfkClaimsStore = { claims: {} };
